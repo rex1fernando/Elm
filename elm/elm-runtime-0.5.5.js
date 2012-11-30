@@ -2621,27 +2621,39 @@ Elm.WebSockets = function() {
   var JS = Elm.JavaScript;
   var toElmString = Elm.JavaScript.castJSStringToString;
   var toJSString = Elm.JavaScript.castStringToJSString;
-  
-  var socket = new WebSocket("ws://localhost:8080");
 
-  function sendToWebSocket(input) {
-    socket.send(toJSString(input));
+  function sendToWebSocket(socket) {
+    return function(input) {
+      if (socket.readyState == WebSocket.OPEN) {
+	console.log(toJSString(input));
+	socket.send(toJSString(input));
+      }
+    }
   }
 
-  function webSocket(input) {
+  function webSocket(address, input) {
     var output = Elm.Signal.constant(["Nil"]);
+    var socket = new WebSocket(toJSString(address));
+    var sender = Elm.Signal.lift(sendToWebSocket(socket))(input);
+    function f(x) { return function(y) { return x; } }
+    var combine = Elm.Signal.lift2(f)(output)(sender);
+    socket.onerror = function(error) {
+      Dispatcher.notify(error.id, toElmString(error));
+      combine = output;
+    }
     socket.onmessage = function(event) {
       Dispatcher.notify(output.id, toElmString(event.data));
     }
-    var sender = Elm.Signal.lift(sendToWebSocket)(input);
-    function f(x) { return function(y) { return x; } }
-    var combine = Elm.Signal.lift2(f)(output)(sender);
+
     return combine;
   }
 
-  return {webSocket : webSocket
-	  };
+  return {webSocket : function(address) { return function(input) { return webSocket(address, input); } }
+         };
 }();
+
+
+
 
 Elm.Input = function() {
     var JS = Elm.JavaScript;
