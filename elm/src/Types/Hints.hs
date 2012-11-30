@@ -176,6 +176,10 @@ http = prefix "HTTP"
     where request  t = ADT "Request"  [t]
           response t = ADT "Response" [t]
 
+webSockets = prefix "WebSockets"
+  [ "webSocket" -:: signalOf string ==> signalOf string ]
+
+
 concreteSignals = 
   [ "Keyboard.Raw.keysDown"    -: signalOf (listOf int)
   , "Keyboard.Raw.charPressed" -: signalOf (maybeOf int)
@@ -410,5 +414,5 @@ hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) hs
     where hs = concat [ funcs, lists, signals, math, bools, textAttrs
                       , graphicsElement, graphicsColor
                       , concreteSignals, javascript, json, maybeFuncs
-                      , http, dictionary, sets, automaton, times, dates
+                      , http, webSockets, dictionary, sets, automaton, times, dates
                       ]
