@@ -177,7 +177,7 @@ http = prefix "HTTP"
           response t = ADT "Response" [t]
 
 webSockets = prefix "WebSockets"
-  [ "webSocket" -:: signalOf string ==> signalOf string ]
+  [ "webSocket" -:: string ==> signalOf string ==> signalOf string ]
 
 
 concreteSignals = 
