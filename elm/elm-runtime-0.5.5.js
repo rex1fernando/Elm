@@ -2616,7 +2616,6 @@ var Dispatcher = function() {
 	  sendGet : function(urls){return send(Elm.Signal.lift(get)(urls));}
 	  };
 }();
-
 Elm.WebSockets = function() {
   var JS = Elm.JavaScript;
   var toElmString = Elm.JavaScript.castJSStringToString;
@@ -2625,8 +2624,8 @@ Elm.WebSockets = function() {
   function sendToWebSocket(socket) {
     return function(input) {
       if (socket.readyState == WebSocket.OPEN) {
-	console.log(toJSString(input));
-	socket.send(toJSString(input));
+        console.log(toJSString(input));
+        socket.send(toJSString(input));
       }
     }
   }
@@ -2638,7 +2637,7 @@ Elm.WebSockets = function() {
     function f(x) { return function(y) { return x; } }
     var combine = Elm.Signal.lift2(f)(output)(sender);
     socket.onerror = function(error) {
-      Dispatcher.notify(error.id, toElmString(error));
+      Dispatcher.notify(output.id, toElmString(error));
       combine = output;
     }
     socket.onmessage = function(event) {
@@ -2648,13 +2647,25 @@ Elm.WebSockets = function() {
     return combine;
   }
 
-  return {webSocket : function(address) { return function(input) { return webSocket(address, input); } }
+  function delay1handler(output) { 
+    return function(input) {
+      setTimeout(function() { Dispatcher.notify(output.id, input); }, 1000);
+    }
+  }
+
+  function delay1(input) {
+    var output = Elm.Signal.constant(input.value);
+    var delay = Elm.Signal.lift(delay1handler(output))(input);
+    function f(x) { return function(y) { return x; } }
+    var combine = Elm.Signal.lift2(f)(output)(delay);
+    return combine;
+  }
+
+  return {webSocket : function(address) { return function(input) { return webSocket(address, input); }},
+	  delay1 : delay1
+					
          };
 }();
-
-
-
-
 Elm.Input = function() {
     var JS = Elm.JavaScript;
     var toElmString = Elm.JavaScript.castJSStringToString;
@@ -2864,7 +2875,7 @@ Elm.Random = function() {
   return { inRange:inRange, randomize:randomize };
 }();Elm.Time = function() {
   function timeNow() { return (new window.Date).getTime(); }
-  var every = function(t) {
+  var now = function(t) {
       var clock = Elm.Signal.constant(timeNow());
       function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
       setInterval(tellTime, t);
@@ -2877,6 +2888,16 @@ Elm.Random = function() {
       function f(t) { setTimeout(tick, msPerFrame); return t; }
       return Elm.Signal.lift(f)(ticker);
   }
+  var every = function(t) {
+      t *= 1000;
+      var clock = Elm.Signal.constant(0);
+      var time = 0;
+      setInterval(function() {
+	      time += t;
+	      Dispatcher.notify(clock.id, time/1000);
+	  }, t);
+      return clock;
+  };
   var after = function(t) {
       t *= 1000;
       var thread = Elm.Signal.constant(false);
@@ -2893,7 +2914,8 @@ Elm.Random = function() {
       var t = window.Date.parse(s);
       return isNaN(t) ? ["Nothing"] : ["Just",t];
   }
-  return {fps:fps,
+  return {now:now,
+	  fps:fps,
 	  every:every,
 	  after:after,
 	  before:before,
@@ -2901,9 +2923,9 @@ Elm.Random = function() {
 	  minutes : function(n) { return n * 60000; },
 	  seconds : function(n) { return n * 1000; },
 	  millis : function(n) { return n; },
-	  inHours : function(t) { return t / 3600000; },
-	  inMinutes : function(t) { return t / 60000; },
-	  inSeconds : function(t) { return t / 1000; },
+	  inHours : function(t) { return ~~(t / 3600000); },
+	  inMinutes : function(t) { return ~~(t / 60000); },
+	  inSeconds : function(t) { return ~~(t / 1000); },
 	  inMillis : function(t) { return t; },
 	  toDate : function(t) { return new window.Date(t); },
 	  read : read
@@ -2932,7 +2954,7 @@ Elm.Random = function() {
 Elm.Date = function() {
 
  function dateNow() { return new window.Date; }
- function every(t) {
+ function now(t) {
      var clock = Elm.Signal.constant(dateNow());
      function tellTime() { Dispatcher.notify(clock.id, dateNow()); }
      setInterval(tellTime, t);
@@ -2949,7 +2971,7 @@ Elm.Date = function() {
 		   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]; 
 
  return {
-     every   : every,
+     now     : now,
      read    : readDate,
      year    : function(d) { return d.getFullYear(); },
      month   : function(d) { return [monthTable[d.getMonth()]]; },
@@ -2957,7 +2979,7 @@ Elm.Date = function() {
      hour    : function(d) { return d.getHours(); },
      minute  : function(d) { return d.getMinutes(); },
      second  : function(d) { return d.getSeconds(); },
-     dayOfWeek : function(d) { return [dayTable[d.getDay()]]; },
+     weekday : function(d) { return [dayTable[d.getDay()]]; },
      toTime  : function(d) { return d.getTime(); },
      Mon : ["Mon"], Tue : ["Tue"], Wed : ["Wed"],
      Thu : ["Thu"], Fri : ["Fri"], Sat : ["Sat"], Sun : ["Sun"],
