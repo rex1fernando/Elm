@@ -176,8 +176,13 @@ http = prefix "HTTP"
     where request  t = ADT "Request"  [t]
           response t = ADT "Response" [t]
 
---webSockets = prefix "WebSockets"
---  [ "webSocket" -:: string ==> signalOf string ==> signalOf string ]
+webSockets = prefix "WebSockets"
+  [ "webSocket" -: signalOf string ==> signalOf socketStatus
+  , "send"      -: signalOf socketStatus ==> signalOf string ==> signalOf (tupleOf [])  
+  , "recv"      -: signalOf socketStatus ==> signalOf socketMessage ]
+  where socketHandle =  ADT "SocketHandle"  []
+        socketStatus =  ADT "SocketStatus"  []
+        socketMessage = ADT "SocketMessage" []    
 
 
 concreteSignals = 
@@ -414,5 +419,5 @@ hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) hs
     where hs = concat [ funcs, lists, signals, math, bools, textAttrs
                       , graphicsElement, graphicsColor
                       , concreteSignals, javascript, json, maybeFuncs
-                      , http, dictionary, sets, automaton, times, dates
+                      , http, webSockets, dictionary, sets, automaton, times, dates
                       ]
