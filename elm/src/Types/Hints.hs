@@ -1,4 +1,3 @@
-
 module Types.Hints (hints) where
 
 import Control.Monad (liftM,mapM)
@@ -142,6 +141,7 @@ json = prefix "JSON"
 
 --------  Signals  --------
 
+lyft n = sig (n+1) ("lift" ++ show n)
 sig n name = (,) name $ Forall [1..n] [] (fn ts ==> fn (map signalOf ts))
     where fn = foldr1 (==>)
           ts = map VarT [1..n]
@@ -149,19 +149,25 @@ sig n name = (,) name $ Forall [1..n] [] (fn ts ==> fn (map signalOf ts))
 signals = prefix "Signal"
     [ sig 1 "constant"
     , sig 2 "lift" 
-    , sig 3 "lift2"
-    , sig 4 "lift3"
-    , sig 5 "lift4"
+    ] ++ map lyft [2..8] ++ [
+      "<~"        -:: (a ==> b) ==> signalOf a ==> signalOf b
+    , "~"         -:: signalOf (a ==> b) ==> signalOf a ==> signalOf b
     , "foldp"     -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
     , "foldp1"    -:: (a ==> a ==> a) ==> signalOf a ==> signalOf a
     , "foldp'"    -:: (a ==> b ==> b) ==> (a ==> b) ==> signalOf a ==> signalOf b
     , "count"     -:: signalOf a ==> signalOf int
-    , "keepIf"    -:: (a==>bool) ==> a ==> signalOf a ==> signalOf a
-    , "dropIf"    -:: (a==>bool) ==> a ==> signalOf a ==> signalOf a
+    , "countIf"   -:: (a ==> bool) ==> signalOf a ==> signalOf int
+    , "keepIf"    -:: (a ==> bool) ==> a ==> signalOf a ==> signalOf a
+    , "dropIf"    -:: (a ==> bool) ==> a ==> signalOf a ==> signalOf a
     , "keepWhen"  -:: signalOf bool ==> a ==> signalOf a ==> signalOf a
     , "dropWhen"  -:: signalOf bool ==> a ==> signalOf a ==> signalOf a
     , "dropRepeats" -:: signalOf a ==> signalOf a
-    , "sampleOn" -:: signalOf a ==> signalOf b ==> signalOf b
+    , "sampleOn"  -:: signalOf a ==> signalOf b ==> signalOf b
+    , "timestamp" -:: signalOf a ==> signalOf (tupleOf [time,a])
+    , "timeOf"    -:: signalOf a ==> signalOf time
+    , "merge"     -:: signalOf a ==> signalOf a ==> signalOf a
+    , "merges"    -:: listOf (signalOf a) ==> signalOf a
+    , numScheme (\n -> int ==> signalOf n ==> signalOf float) "average"
     ]
 
 http = prefix "HTTP"
@@ -209,23 +215,21 @@ concreteSignals =
   ]
 
 times = prefix "Time"
-  [ "deltas"    -: signalOf time ==> signalOf time
-  , "fps"       -: number ==> signalOf time
-  , "every"     -: time ==> signalOf time
-  , "fpsWhen"   -: signalOf bool ==> number ==> signalOf time
---  , "everyWhen" -: signalOf bool ==> time ==> signalOf time
-  , "before"    -: time ==> signalOf bool
-  , "after"     -: time ==> signalOf bool
-  , "hours"     -: number ==> time
-  , "minutes"   -: number ==> time
-  , "seconds"   -: number ==> time
-  , "millis"    -: number ==> time
+  [ "fps"     -: number ==> signalOf time
+  , "every"   -: time ==> signalOf time
+  , "fpsWhen" -: number ==> signalOf bool ==> signalOf time
+  , "delay"   -:: time ==> signalOf a ==> signalOf a
+  , "since"   -:: time ==> signalOf a ==> signalOf bool
+  , "hour"    -: time
+  , "minute"  -: time
+  , "second"  -: time
+  , "ms"      -: time
   , "inHours"   -: time ==> float
   , "inMinutes" -: time ==> float
   , "inSeconds" -: time ==> float
-  , "inMillis"  -: time ==> float
-  , "toDate"    -: time ==> date
-  , "read"      -: string ==> maybeOf time
+  , "inMss"  -: time ==> float
+  , "toDate"  -: time ==> date
+  , "read"    -: string ==> maybeOf time
   ]
 
 dates =
@@ -233,8 +237,7 @@ dates =
       months = map (-: month) [ "Jan", "Feb", "Mar", "Apr", "May", "Jun"
 		              , "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ]
   in  prefix "Date"
-        ([ "every"     -: time ==> signalOf date
-         , "read"      -: string ==> maybeOf date
+        ([ "read"      -: string ==> maybeOf date
          , "year"      -: date ==> int
          , "month"     -: date ==> month
          , "day"       -: date ==> int

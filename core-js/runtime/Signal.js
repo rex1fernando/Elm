@@ -109,6 +109,21 @@ Elm.Signal = function() {
   /**
    * @constructor
    */
+  function timeIndex(pair,s) {
+      this.id = Guid.guid();
+      var t = (new window.Date).getTime();
+      this.value = pair ? Value.Tuple(t,s.value) : t;
+      this.kids = [];
+      this.recv = function(timestep, changed, parentID) {
+	  if (changed) this.value = pair ? Value.Tuple(timestep, s.value) : timestep;
+	  send(this, timestep, changed);
+      };
+      s.kids.push(this);
+  }
+
+  /**
+   * @constructor
+   */
   function sampleOn(s1,s2) {
     this.id = Guid.guid();
     this.value = s2.value;
@@ -132,11 +147,15 @@ Elm.Signal = function() {
 
   function delay(t) { return function(s) {
       var delayed = new input(s.value);
+      var firstEvent = true;
       function update(v) {
-	  setTimeout(function() { Dispatcher.notify(delayed.id,v); },t*1000);
+	  if (firstEvent) return;
+	  setTimeout(function() { Dispatcher.notify(delayed.id,v); },t);
       }
       function first(a) { return function(b) { return a; }; }
-      return new lift(first, [delayed, new lift(update,[s])]);
+      var out = new sampleOn(delayed,new lift(first, [delayed, new lift(update,[s])]));
+      firstEvent = false;
+      return out;
     };
   }
   
@@ -173,16 +192,61 @@ Elm.Signal = function() {
     s2.kids.push(this);
   };
 
+  function merges(ss) {
+      function mrg(x) { return function(y) { return new merge(x,y); }; }
+      return Elm.List.foldl1(mrg)(ss);
+  }
+
+  function average(sampleSize) { return function(s) {
+    var sample = new Array(sampleSize);
+    var i = sampleSize;
+    while (i--) sample[i] = 0;
+    i = 0;
+    var full = false;
+    var total = 0;
+    function f(n) {
+	total += n - sample[i];
+	sample[i] = n;
+	var avg = total / Math.max(1, full ? sampleSize : i);
+	if (++i == sampleSize) { full = true; i = 0; }
+	return avg;
+    }
+    return new lift(f, [s]);
+   };
+  }
+
   return {
     constant : function(v) { return new input(v); },
     lift  : function(f){return function(e){return new lift(f,[e]);};},
-    lift2 : function(f) { return function(e1) { return function(e2) {
-		  return new lift(f, [e1,e2]); }; }; },
-    lift3 : function(f) { return function(e1) { return function(e2) {
-		  return function(e3){return new lift(f,[e1,e2,e3]);};};};},
-    lift4 : function(f) { return function(e1) { return function(e2) {
-		  return function(e3) { return function(e4) {
-			  return new lift(f, [e1,e2,e3,e4]); }; }; }; }; },
+    lift2 : function(f) {
+	      return function(e1) { return function(e2) {
+	      return new lift(f, [e1,e2]); };};},
+    lift3 : function(f) {
+	      return function(e1) { return function(e2) {
+	      return function(e3){return new lift(f,[e1,e2,e3]);};};};},
+    lift4 : function(f) {
+	      return function(e1) { return function(e2) {
+	      return function(e3) { return function(e4) {
+	      return new lift(f, [e1,e2,e3,e4]);};};};};},
+    lift5 : function(f) {
+	      return function(e1) { return function(e2) {
+	      return function(e3) { return function(e4) {
+	      return function(e5) {
+	      return new lift(f, [e1,e2,e3,e4,e5]);};};};};};},
+    lift6 : function(f) { return function(e1) { return function(e2) {
+              return function(e3) { return function(e4) {
+              return function(e5) { return function(e6) {
+	      return new lift(f, [e1,e2,e3,e4,e5,e6]); };};};};};};},
+    lift7 : function(f) { return function(e1) { return function(e2) {
+              return function(e3) { return function(e4) {
+              return function(e5) { return function(e6) {
+              return function(e7) {
+              return new lift(f, [e1,e2,e3,e4,e5,e6,e7]);};};};};};};};},
+    lift8 : function(f) { return function(e1) { return function(e2) {
+              return function(e3) { return function(e4) {
+              return function(e5) { return function(e6) {
+              return function(e7) { return function(e8) {
+              return new lift(f, [e1,e2,e3,e4,e5,e6,e7,e8]);};};};};};};};};},
     foldp : function(f) { return function(b) { return function(e) {
 		  return new fold(f,b,false,e); }; }; },
     foldp_ : function(f) { return function(b) { return function(e) {
@@ -191,6 +255,8 @@ Elm.Signal = function() {
 	      return new fold(f,function(x){return x;},true,e); }; },
     delay : delay,
     merge : function(s1) { return function(s2) { return new merge(s1,s2)}; },
+    merges : merges,
+    average : average,
     count : function(sig) {
 	  var incr = function(_){return function(c){return c+1;};};
 	  return new fold(incr,0,false,sig) },
@@ -204,6 +270,8 @@ Elm.Signal = function() {
     keepWhen : function(s) { return dropWhen(new lift(function(b){return !b;},[s])); },
     dropWhen : dropWhen,
     dropRepeats : function(s) { return new dropRepeats(s);},
-    sampleOn : function(s1){return function(s2){return new sampleOn(s1,s2);};}
+    sampleOn : function(s1){return function(s2){return new sampleOn(s1,s2);};},
+    timestamp : function(s) { return new timeIndex(true, s); },
+    timeOf : function(s) { return new timeIndex(false, s); }
   };
 }();

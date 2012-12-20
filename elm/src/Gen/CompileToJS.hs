@@ -1,4 +1,3 @@
-
 module CompileToJS (showErr, jsModule) where
 
 import Ast
@@ -32,6 +31,13 @@ jsFunc args body = "function(" ++ args ++ "){" ++ indent body ++ "}"
 assign x e = "\nvar " ++ x ++ "=" ++ e ++ ";"
 ret e = "\nreturn "++ e ++";"
 iff a b c = a ++ "?" ++ b ++ ":" ++ c
+quoted s  = "'" ++ concatMap f s ++ "'"
+    where f '\n' = "\\n"
+          f '\'' = "\\'"
+          f '\t' = "\\t"
+          f '\"' = "\\\""
+          f '\\' = "\\\\"
+          f c    = [c]
 
 mainEquals s = globalAssign "Elm.main" (jsFunc "" (ret s))
 globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
@@ -122,12 +128,13 @@ jsImport' (modul, Hiding vs) =
 stmtsToJS :: [Statement] -> String
 stmtsToJS stmts = run (concat `liftM` mapM toJS (sortBy cmpStmt stmts))
     where cmpStmt s1 s2 = compare (valueOf s1) (valueOf s2)
-          valueOf s = case s of Datatype _ _ _             -> 1
-                                ImportEvent _ _ _ _        -> 3
-                                Definition (FnDef _ [] _)  -> 3
-                                Definition (OpDef _ _ _ _) -> 3
-                                Definition _               -> 4
-                                ExportEvent _ _ _          -> 5
+          valueOf s = case s of
+                        Datatype _ _ _             -> 1
+                        ImportEvent _ _ _ _        -> 2
+                        Definition (FnDef f [] _)  ->
+                            if derename f == "main" then 5 else 4
+                        Definition _               -> 3
+                        ExportEvent _ _ _          -> 6
 
 class ToJS a where
   toJS :: a -> GuidCounter String
@@ -166,8 +173,8 @@ instance ToJS Expr where
       IntNum n -> return $ show n
       FloatNum n -> return $ show n
       Var x -> return $ x
-      Chr c -> return $ show c
-      Str s -> return $ "Value.str" ++ parens (show s)
+      Chr c -> return $ quoted [c]
+      Str s -> return $ "Value.str" ++ parens (quoted s)
       Boolean b -> return $ if b then "true" else "false"
       Range lo hi -> jsRange `liftM` toJS lo `ap` toJS hi
       Access e lbl -> (\s -> s ++ "." ++ lbl) `liftM` toJS e
@@ -175,13 +182,13 @@ instance ToJS Expr where
       If eb et ef -> parens `liftM` (iff `liftM` toJS eb `ap` toJS et `ap` toJS ef)
       Guard ps -> guardToJS ps
       Lambda v e -> liftM (jsFunc v . ret) (toJS e)
-      App (Var "toText") (Str s) -> return $ "toText" ++ parens (show s)
-      App (Var "link") (Str s) -> return $ "link(" ++ show s ++ ")"
-      App (Var "plainText") (Str s) -> return $ "plainText(" ++ show s ++ ")"
+      App (Var "toText") (Str s) -> return $ "toText" ++ parens (quoted s)
+      App (Var "link") (Str s) -> return $ "link(" ++ quoted s ++ ")"
+      App (Var "plainText") (Str s) -> return $ "plainText(" ++ quoted s ++ ")"
       App e1 e2 -> (++) `liftM` (toJS e1) `ap` (parens `liftM` toJS e2)
       Let defs e -> jsLet defs e
       Case e cases -> caseToJS e cases
-      Data name es -> (\ss -> jsList $ show name : ss) `liftM` mapM toJS es
+      Data name es -> (\ss -> jsList $ quoted name : ss) `liftM` mapM toJS es
       Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
           where md = formatMarkdown $ Pan.writeHtmlString Pan.defaultWriterOptions doc
                 pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
@@ -230,10 +237,10 @@ matchToJS (Seq ms) = concat `liftM` mapM matchToJS ms
 clauseToJS var (Clause name vars e) = do
   let vars' = map (\n -> var ++ "[" ++ show n ++ "]") [ 1 .. length vars ]
   s <- matchToJS $ matchSubst (zip vars vars') e
-  return $ concat [ "\ncase ", show name, ":", s ]
+  return $ concat [ "\ncase ", quoted name, ":", s ]
 
 jsNil         = "[\"Nil\"]"
-jsCons  e1 e2 = jsList [ show "Cons", e1, e2 ]
+jsCons  e1 e2 = jsList [ quoted "Cons", e1, e2 ]
 jsRange e1 e2 = (++"()") . jsFunc "" $
                 assign "lo" e1 ++ assign "hi" e2 ++ assign "lst" jsNil ++
                 "if(lo<=hi){do{lst=" ++ (jsCons "hi" "lst") ++ "}while(hi-->lo)}" ++
@@ -257,6 +264,9 @@ binop (o:p) e1 e2
                   e2 ++ ")[0]; return ord==='LT' || ord==='EQ'; }()"
           ">=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++
                   e2 ++ ")[0]; return ord==='GT' || ord==='EQ'; }()"
+          "<~" -> "lift" ++ parens e1 ++ parens e2
+          "~"  -> "lift2(function(f){return function(x){return f(x);};})" ++
+                  parens e1 ++ parens e2
           _  | elem (o:p) ops -> parens (e1 ++ (o:p) ++ e2)
              | otherwise      -> concat [ "$op['", o:p, "']"
                                         , parens e1, parens e2 ]
