@@ -1,9 +1,8 @@
-// data SocketStatus = Waiting | Open SocketHandle | Closed | Error String
-// data SocketMessage = Waiting | Message String | Closed | Error String
+// data Socket = Waiting | Open SocketHandle | Closed | Error String
 
-// webSocket :: Signal String -> Signal SocketStatus
-// send :: Signal SocketStatus -> Signal String -> Signal ()
-// recv :: Signal SocketStatus -> Signal SocketMessage
+// webSocket :: Signal String -> Signal Socket
+// send :: Signal Socket -> Signal String -> Signal ()
+// recv :: Signal Socket -> Signal (Maybe String)
 
 Elm.WebSockets = function() {
   var JS = Elm.JavaScript;
@@ -42,7 +41,7 @@ Elm.WebSockets = function() {
       }
       socket.onmessage = function(event) {
         for (var i = 0; i < socket.receiverSignals.length; i++) {
-          Dispatcher.notify(socket.receiverSignals[i].id, ["Message", toElmString(event.data)]);
+          Dispatcher.notify(socket.receiverSignals[i].id, ["Just", toElmString(event.data)]);
         }
       }
     }
@@ -60,10 +59,8 @@ Elm.WebSockets = function() {
       console.log(socket[0]);
       switch(socket[0]){
       case "Closed":
-        Dispatcher.notify(messages.id, socket);
         return;
       case "Error":
-        Dispatcher.notify(messages.id, socket);
         return;
       case "Open":
         if (!messages.wsinternal_alreadyAddedToReceivers) {
@@ -72,14 +69,13 @@ Elm.WebSockets = function() {
         }
         return;
       case "Waiting":
-        Dispatcher.notify(messages.id, socket);
         return;
       }
     }
   }
 
   function recv(socket) {
-    var messages = Elm.Signal.constant(toElmString("Waiting"));
+    var messages = Elm.Signal.constant(["Nothing"]);
     var receiver = Elm.Signal.lift(receiveFromWebSocket(messages))(socket);
     
     function f(x) { return function(y) { return x; } }
@@ -98,24 +94,8 @@ Elm.WebSockets = function() {
     return combine;
   }
 
-  function delay1handler(output) { 
-    return function(input) {
-      setTimeout(function() { Dispatcher.notify(output.id, input); }, 1000);
-    }
-  }
-
-  function delay1(input) {
-    var output = Elm.Signal.constant(input.value);
-    var delay = Elm.Signal.lift(delay1handler(output))(input);
-    function f(x) { return function(y) { return x; } }
-    var combine = Elm.Signal.lift2(f)(output)(delay);
-    return combine;
-  }
-
   return {webSocket : webSocket,
-	  delay1 : delay1,
           send : send,
           recv : recv
-					
          };
 }();
