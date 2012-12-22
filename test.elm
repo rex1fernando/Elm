@@ -1,25 +1,23 @@
 import Mouse (position)
-import WebSockets (webSocket, send, recv, delay1)
-import Time (every)
+import WebSockets (webSocket, send, recv)
+import Time
+import Maybe
 
-socketStatus = webSocket (constant "ws://localhost:8080")
+socket = webSocket (constant "ws://localhost:8080")
 
-communicateWithWebSocket status = case status of
-                                { Waiting -> "waiting"
-                                ; Open s -> "open"
-                                ; Error e -> "error"
-                                ; Closed -> "closed" }
-
-handleResponse r = case r of 
-                 { Waiting -> "Waiting to connect"
-                 ; Message m -> m
-                 ; Error e -> "error: " ++ e
-                 ; Closed -> "WebSocket closed" }
+statusmessage = lift (\s -> case s of
+                                { Waiting -> "waiting for socket to open"
+                                ; Open s -> "socket is open"
+                                ; Error e -> "error: " ++ e
+                                ; Closed -> "socket was closed" }) socket
 
 
-receivedText = lift handleResponse (recv socketStatus)
---stuff = send socketStatus (delay1 receivedText)
-stuff = send socketStatus receivedText
 
 
-main = lift asText receivedText
+messages = lift (fromMaybe "Haven't received anything yet") (recv socket)
+stuff = send socket (delay second messages)
+--stuff = send socket messages
+
+
+
+main = lift asText (merge statusmessage messages)
