@@ -183,13 +183,10 @@ http = prefix "HTTP"
           response t = ADT "Response" [t]
 
 webSockets = prefix "WebSockets"
-  [ "webSocket" -: signalOf string ==> signalOf socketStatus
-  , "send"      -: signalOf socketStatus ==> signalOf string ==> signalOf (tupleOf [])  
-  , "recv"      -: signalOf socketStatus ==> signalOf socketMessage ]
-  where socketHandle =  ADT "SocketHandle"  []
-        socketStatus =  ADT "SocketStatus"  []
-        socketMessage = ADT "SocketMessage" []    
-
+  [ "webSocket" -: signalOf string ==> signalOf socket
+  , "send"      -: signalOf socket ==> signalOf string ==> signalOf (tupleOf [])  
+  , "recv"      -: signalOf socket ==> signalOf (maybeOf string) ]
+  where socket =  ADT "Socket"  []
 
 concreteSignals = 
   [ "Keyboard.Raw.keysDown"    -: signalOf (listOf int)
