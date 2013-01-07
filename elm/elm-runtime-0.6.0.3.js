@@ -2766,7 +2766,9 @@ Elm.WebSockets = function() {
     function f(x) { return function(y) { return x; } }
     var combine = Elm.Signal.lift2(f)(messages)(receiver);
 
-    return combine;
+    var out = Elm.Signal.sampleOn(messages)(combine);
+
+    return out;
   }
 
   function webSocket(address) {
@@ -2779,25 +2781,9 @@ Elm.WebSockets = function() {
     return combine;
   }
 
-  function delay1handler(output) { 
-    return function(input) {
-      setTimeout(function() { Dispatcher.notify(output.id, input); }, 1000);
-    }
-  }
-
-  function delay1(input) {
-    var output = Elm.Signal.constant(input.value);
-    var delay = Elm.Signal.lift(delay1handler(output))(input);
-    function f(x) { return function(y) { return x; } }
-    var combine = Elm.Signal.lift2(f)(output)(delay);
-    return combine;
-  }
-
   return {webSocket : webSocket,
-	  delay1 : delay1,
           send : send,
           recv : recv
-					
          };
 }();
 Elm.Input = function() {

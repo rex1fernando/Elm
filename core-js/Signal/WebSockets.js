@@ -81,7 +81,9 @@ Elm.WebSockets = function() {
     function f(x) { return function(y) { return x; } }
     var combine = Elm.Signal.lift2(f)(messages)(receiver);
 
-    return combine;
+    var out = Elm.Signal.sampleOn(messages)(combine);
+
+    return out;
   }
 
   function webSocket(address) {
